@@ -3,69 +3,122 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SCM AS-IS → TO-BE 재고 재배치 대시보드</title>
+<title>CJ프레시웨이 | SCM 재고 재배치 대시보드</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
+/* CJ프레시웨이 브랜드 컬러 (cjfreshway.com 실사이트에서 추출: 메인 그린 #005B45,
+   CJ 블로썸 로고 3색 blue #006ECE / orange #FF9800 / red #EF141D) */
 :root {
   color-scheme: light;
-  --surface-1: #fcfcfb;
-  --page: #f2f1ee;
-  --text-primary: #0b0b0b;
-  --text-secondary: #52514e;
-  --text-muted: #898781;
-  --grid: #e1e0d9;
-  --baseline: #c3c2b7;
-  --border: rgba(11,11,11,0.10);
-  --series-1: #2a78d6;
-  --series-2: #008300;
-  --status-over: #d03b3b;    /* 과적재 = 빨강 */
-  --status-under: #2a78d6;   /* 저활용 = 파랑 */
-  --status-normal: #0ca30c;  /* 정상 = 초록 */
-  --status-over-bg: rgba(208,59,59,0.10);
-  --status-under-bg: rgba(42,120,214,0.10);
-  --status-normal-bg: rgba(12,163,12,0.10);
+  --surface-1: #ffffff;
+  --page: #f4f6f5;
+  --text-primary: #10201b;
+  --text-secondary: #52605a;
+  --text-muted: #8b968f;
+  --grid: #e3e9e6;
+  --baseline: #c2cbc6;
+  --border: rgba(0,45,34,0.10);
+  --brand-green: #005B45;
+  --brand-green-dark: #003f30;
+  --brand-blue: #006ECE;
+  --brand-orange: #FF9800;
+  --brand-red: #EF141D;
+  --series-1: #005B45;
+  --series-2: #006ECE;
+  --status-over: #EF141D;    /* 과적재 = 빨강 (CJ 로고 레드) */
+  --status-under: #006ECE;   /* 저활용 = 파랑 (CJ 로고 블루) */
+  --status-normal: #005B45;  /* 정상 = 그린 (CJ프레시웨이 브랜드 그린) */
+  --status-over-bg: rgba(239,20,29,0.09);
+  --status-under-bg: rgba(0,110,206,0.09);
+  --status-normal-bg: rgba(0,91,69,0.09);
 }
 @media (prefers-color-scheme: dark) {
   :root:where(:not([data-theme="light"])) {
     color-scheme: dark;
-    --surface-1: #1a1a19;
-    --page: #0d0d0d;
-    --text-primary: #ffffff;
-    --text-secondary: #c3c2b7;
-    --text-muted: #898781;
-    --grid: #2c2c2a;
-    --baseline: #383835;
+    --surface-1: #12211c;
+    --page: #0a1512;
+    --text-primary: #f2f7f5;
+    --text-secondary: #b9c7c1;
+    --text-muted: #7e8d87;
+    --grid: #24352e;
+    --baseline: #35473f;
     --border: rgba(255,255,255,0.10);
-    --series-1: #3987e5;
-    --series-2: #008300;
-    --status-over: #e66767;
-    --status-under: #3987e5;
-    --status-normal: #0ca30c;
-    --status-over-bg: rgba(230,103,103,0.14);
-    --status-under-bg: rgba(57,135,229,0.14);
-    --status-normal-bg: rgba(12,163,12,0.14);
+    --brand-green: #2e9c7a;
+    --brand-green-dark: #1c7a5e;
+    --brand-blue: #4fa3e8;
+    --brand-orange: #ffb54d;
+    --brand-red: #ef6a67;
+    --series-1: #2e9c7a;
+    --series-2: #4fa3e8;
+    --status-over: #ef6a67;
+    --status-under: #4fa3e8;
+    --status-normal: #2e9c7a;
+    --status-over-bg: rgba(239,106,103,0.14);
+    --status-under-bg: rgba(79,163,232,0.14);
+    --status-normal-bg: rgba(46,156,122,0.16);
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --surface-1: #1a1a19; --page: #0d0d0d; --text-primary: #ffffff; --text-secondary: #c3c2b7;
-  --text-muted: #898781; --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
-  --series-1: #3987e5; --series-2: #008300;
-  --status-over: #e66767; --status-under: #3987e5; --status-normal: #0ca30c;
-  --status-over-bg: rgba(230,103,103,0.14); --status-under-bg: rgba(57,135,229,0.14); --status-normal-bg: rgba(12,163,12,0.14);
+  --surface-1: #12211c; --page: #0a1512; --text-primary: #f2f7f5; --text-secondary: #b9c7c1;
+  --text-muted: #7e8d87; --grid: #24352e; --baseline: #35473f; --border: rgba(255,255,255,0.10);
+  --brand-green: #2e9c7a; --brand-green-dark: #1c7a5e; --brand-blue: #4fa3e8; --brand-orange: #ffb54d; --brand-red: #ef6a67;
+  --series-1: #2e9c7a; --series-2: #4fa3e8;
+  --status-over: #ef6a67; --status-under: #4fa3e8; --status-normal: #2e9c7a;
+  --status-over-bg: rgba(239,106,103,0.14); --status-under-bg: rgba(79,163,232,0.14); --status-normal-bg: rgba(46,156,122,0.16);
 }
 
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--page); color: var(--text-primary);
-  font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
+  font-family: "Noto Sans KR", system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
 .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; }
 
+/* ---- Brand top bar ---- */
+.brand-bar { background: var(--brand-green); color: #fff; padding: 9px 20px;
+  display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; letter-spacing: .01em; }
+.brand-bar .dots { display: inline-flex; gap: 3px; }
+.brand-bar .dots span { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.brand-bar .wordmark { font-weight: 800; letter-spacing: .02em; }
+.brand-bar .tagline { color: rgba(255,255,255,0.72); font-weight: 500; }
+
+/* ---- App shell / sidebar ---- */
+.app-shell { display: flex; align-items: stretch; min-height: 100vh; }
+.sidebar { flex: 0 0 220px; background: var(--surface-1); border-right: 1px solid var(--border);
+  padding: 18px 12px; position: sticky; top: 34px; align-self: flex-start; height: calc(100vh - 34px); overflow-y: auto; }
+.sidebar-title { font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase;
+  letter-spacing: .04em; padding: 6px 10px 14px; }
+.nav-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  background: transparent; border: none; border-radius: 9px; padding: 10px 12px; margin-bottom: 4px;
+  font-size: 13.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer;
+  font-family: inherit; }
+.nav-item .emoji { font-size: 15px; }
+.nav-item:hover { background: var(--page); color: var(--text-primary); }
+.nav-item.active { background: var(--status-normal-bg); color: var(--brand-green); font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--brand-green); }
+.main-content { flex: 1 1 auto; min-width: 0; }
+.page { display: none; }
+.page.active { display: block; }
+
+@media (max-width: 880px) {
+  .app-shell { flex-direction: column; }
+  .sidebar { position: static; height: auto; width: 100%; flex: none;
+    display: flex; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .sidebar-title { display: none; }
+  .nav-item { width: auto; white-space: nowrap; }
+}
+
 header.page-head { margin-bottom: 22px; }
-header.page-head h1 { font-size: 24px; margin: 0 0 6px; font-weight: 800; }
+header.page-head .eyebrow { display: block; font-size: 11.5px; font-weight: 800; color: var(--brand-green);
+  text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+header.page-head h1 { font-size: 24px; margin: 0 0 6px; font-weight: 800; letter-spacing: -.01em; }
 header.page-head p { margin: 0; color: var(--text-secondary); font-size: 13.5px; }
 
-.panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
-  padding: 20px 22px 16px; margin-bottom: 20px; }
+.panel { background: var(--surface-1); border: 1px solid var(--border); border-top: 3px solid var(--brand-green);
+  border-radius: 4px; padding: 20px 22px 16px; margin-bottom: 20px;
+  box-shadow: 0 1px 2px rgba(0,20,15,0.04); }
 .panel h2 { font-size: 16px; margin: 0 0 4px; font-weight: 800; display:flex; align-items:center; gap:8px;}
 .panel .desc { font-size: 12.5px; color: var(--text-secondary); margin: 0 0 16px; line-height:1.55; }
 .panel .note { font-size: 11.5px; color: var(--text-muted); margin-top: 8px; line-height:1.5; }
@@ -76,8 +129,9 @@ header.page-head p { margin: 0; color: var(--text-secondary); font-size: 13.5px;
 
 /* ---- Summary cards ---- */
 .card-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
-.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
-  padding: 18px 20px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 4px;
+  padding: 18px 20px 16px; box-shadow: 0 1px 2px rgba(0,20,15,0.04); position: relative; overflow: hidden; }
+.card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--brand-green); }
 .card .label { font-size: 12.5px; color: var(--text-secondary); font-weight: 600; margin-bottom: 10px; }
 .card .flow { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .card .before { font-size: 15px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
@@ -155,12 +209,30 @@ footer.foot { text-align:center; font-size:11px; color:var(--text-muted); margin
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="brand-bar">
+  <span class="dots"><span style="background:var(--brand-blue)"></span><span style="background:var(--brand-orange)"></span><span style="background:var(--brand-red)"></span></span>
+  <span class="wordmark">CJ프레시웨이</span>
+  <span class="tagline">FOOD BUSINESS PARTNER · SCM Analytics</span>
+</div>
+<div class="app-shell">
+
+  <nav class="sidebar">
+    <div class="sidebar-title">메뉴</div>
+    <button class="nav-item active" data-page="overview"><span class="emoji">📊</span>요약 대시보드</button>
+    <button class="nav-item" data-page="table"><span class="emoji">📋</span>SKU 이동 상세</button>
+    <button class="nav-item" data-page="guide"><span class="emoji">💡</span>현장 실행 가이드</button>
+  </nav>
+
+  <div class="main-content">
+  <div class="wrap">
 
   <header class="page-head">
-    <h1>SCM 재고 재배치 대시보드 — AS-IS → TO-BE</h1>
+    <span class="eyebrow">SCM · Inventory Optimization</span>
+    <h1>재고 재배치 대시보드 — AS-IS → TO-BE</h1>
     <p>CJ프레시웨이 &#39;25년6월이체출고실적&#39; 기준 · SKU 1,000개 × 센터 5개 · LP(PuLP/CBC) 최적화 결과</p>
   </header>
+
+  <div class="page active" data-page="overview">
 
   <!-- 1. 요약 카드 -->
   <div class="card-row" id="summaryCards"></div>
@@ -208,7 +280,10 @@ footer.foot { text-align:center; font-size:11px; color:var(--text-muted); margin
     </div>
   </div>
 
+  </div><!-- /page:overview -->
+
   <!-- 4. SKU 이동 상세 테이블 -->
+  <div class="page" data-page="table">
   <div class="panel">
     <h2>SKU 이동(Transfer) 상세 <span id="tableCount" style="font-size:12px;color:var(--text-muted);font-weight:500;"></span></h2>
     <p class="desc">TO-BE 계획 상 AS-IS 대비 재고량이 변화하는 모든 SKU×센터 조합(±0.5kg 이상). 컬럼 헤더 클릭 시 정렬.</p>
@@ -250,16 +325,21 @@ footer.foot { text-align:center; font-size:11px; color:var(--text-muted); margin
       </div>
     </div>
   </div>
+  </div><!-- /page:table -->
 
   <!-- 5. 현장 실행 가이드 -->
+  <div class="page" data-page="guide">
   <div class="panel">
     <h2>현장 실행 가이드</h2>
     <p class="desc">위 분석 결과를 바탕으로 자동 생성된 액션 아이템.</p>
     <div class="guide-list" id="guideList"></div>
   </div>
+  </div><!-- /page:guide -->
 
   <footer class="foot">CJ프레시웨이 &#39;25년6월이체출고실적&#39; 기반 SCM 재고 재배치 분석 · 안전재고/Capa/이체비용/권역 매핑은 가상 정의값 · 실행 전 현업 검증 필요</footer>
-</div>
+  </div><!-- /wrap -->
+  </div><!-- /main-content -->
+</div><!-- /app-shell -->
 
 <script>
 const DATA = /*__DASHBOARD_DATA__*/;
@@ -414,7 +494,7 @@ Chart.defaults.color = cssVar('--text-secondary');
 (function renderStorageCharts(){
   const s = DATA.storage;
   const labels = s.map(r=>r.storage);
-  const palette = { "실온": cssVar('--status-normal'), "냉동": cssVar('--series-1'), "냉장": '#e87ba4' };
+  const palette = { "실온": cssVar('--brand-green'), "냉동": cssVar('--brand-blue'), "냉장": cssVar('--brand-orange') };
 
   new Chart(document.getElementById('chartStorageDays'), {
     type:'bar',
@@ -590,6 +670,23 @@ Chart.defaults.color = cssVar('--text-secondary');
   document.getElementById('guideList').innerHTML = items.map(it =>
     `<div class="guide-item"><div class="icon ${it.icon}">${it.icon==='a'?'▲':it.icon==='b'?'▼':'●'}</div><div class="text">${it.html}</div></div>`
   ).join('');
+})();
+
+// ============================================================
+// 6. 사이드바 네비게이션
+// ============================================================
+(function initNav(){
+  const navItems = document.querySelectorAll('.nav-item');
+  const pages = document.querySelectorAll('.page');
+  navItems.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.page;
+      navItems.forEach(b => b.classList.toggle('active', b === btn));
+      pages.forEach(p => p.classList.toggle('active', p.dataset.page === target));
+      document.querySelector('.main-content').scrollTo?.(0, 0);
+      window.scrollTo(0, 0);
+    });
+  });
 })();
 
 })();
