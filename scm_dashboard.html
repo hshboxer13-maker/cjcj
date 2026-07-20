@@ -84,12 +84,14 @@ body { margin: 0; background: var(--page); color: var(--text-primary);
   background: linear-gradient(180deg, rgba(0,25,18,0.55) 0%, rgba(0,25,18,0.35) 45%, rgba(0,25,18,0.78) 100%); }
 .hero-content { position: relative; z-index: 1; max-width: 1280px; height: 100%; margin: 0 auto;
   padding: 0 20px; display: flex; flex-direction: column; justify-content: center; color: #fff; }
-.hero-brand-row { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600;
+.hero-brand-row { display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 600;
   letter-spacing: .01em; margin-bottom: 18px; }
-.hero-brand-row .dots { display: inline-flex; gap: 3px; }
-.hero-brand-row .dots span { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-.hero-brand-row .wordmark { font-weight: 800; letter-spacing: .02em; }
-.hero-brand-row .tagline { color: rgba(255,255,255,0.72); font-weight: 500; }
+/* CJ프레시웨이 공식 로고 스프라이트(headerlogo_pc_kor.png)는 위:다크텍스트/아래:화이트텍스트 2단 구성.
+   실제 사이트가 쓰는 것과 동일한 클리핑 기법(overflow:hidden + margin-top)으로 흰색 버전만 노출 */
+.hero-brand-row .cj-logo-mark { display: block; height: 26px; overflow: hidden; }
+.hero-brand-row .cj-logo-mark img { display: block; height: 52px; margin-top: -26px; }
+.hero-brand-row .tagline { color: rgba(255,255,255,0.72); font-weight: 500;
+  padding-left: 12px; border-left: 1px solid rgba(255,255,255,0.3); }
 .hero-content .eyebrow { display: block; font-size: 11.5px; font-weight: 800; color: #b9f0d8;
   text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
 .hero-content h1 { font-size: 30px; margin: 0 0 8px; font-weight: 800; letter-spacing: -.01em; color: #fff; }
@@ -234,8 +236,7 @@ footer.foot { text-align:center; font-size:11px; color:var(--text-muted); margin
   <div class="hero-overlay"></div>
   <div class="hero-content">
     <div class="hero-brand-row">
-      <span class="dots"><span style="background:var(--brand-blue)"></span><span style="background:var(--brand-orange)"></span><span style="background:var(--brand-red)"></span></span>
-      <span class="wordmark">CJ프레시웨이</span>
+      <span class="cj-logo-mark"><img src="https://www.cjfreshway.com/_resource/images/common/headerlogo_pc_kor.png" alt="CJ FRESHWAY"></span>
       <span class="tagline">FOOD BUSINESS PARTNER · SCM Analytics</span>
     </div>
     <span class="eyebrow">SCM · Inventory Optimization</span>
