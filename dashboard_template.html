@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CJ프레시웨이 | SCM 재고 재배치 대시보드</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -115,6 +116,13 @@ header.page-head .eyebrow { display: block; font-size: 11.5px; font-weight: 800;
   text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
 header.page-head h1 { font-size: 24px; margin: 0 0 6px; font-weight: 800; letter-spacing: -.01em; }
 header.page-head p { margin: 0; color: var(--text-secondary); font-size: 13.5px; }
+.data-source-badge { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle;
+  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; margin-left: 8px;
+  background: var(--page); color: var(--text-muted); border: 1px solid var(--border); }
+.data-source-badge.live { background: var(--status-normal-bg); color: var(--status-normal); }
+.data-source-badge.embedded { background: var(--status-under-bg); color: var(--status-under); }
+.data-source-badge.error { background: var(--status-over-bg); color: var(--status-over); }
+.data-source-badge::before { content: "●"; font-size: 8px; }
 
 .panel { background: var(--surface-1); border: 1px solid var(--border); border-top: 3px solid var(--brand-green);
   border-radius: 4px; padding: 20px 22px 16px; margin-bottom: 20px;
@@ -228,7 +236,7 @@ footer.foot { text-align:center; font-size:11px; color:var(--text-muted); margin
 
   <header class="page-head">
     <span class="eyebrow">SCM · Inventory Optimization</span>
-    <h1>재고 재배치 대시보드 — AS-IS → TO-BE</h1>
+    <h1>재고 재배치 대시보드 — AS-IS → TO-BE <span id="dataSourceBadge" class="data-source-badge">불러오는 중…</span></h1>
     <p>CJ프레시웨이 &#39;25년6월이체출고실적&#39; 기준 · SKU 1,000개 × 센터 5개 · LP(PuLP/CBC) 최적화 결과</p>
   </header>
 
@@ -342,11 +350,49 @@ footer.foot { text-align:center; font-size:11px; color:var(--text-muted); margin
 </div><!-- /app-shell -->
 
 <script>
-const DATA = /*__DASHBOARD_DATA__*/;
+// 빌드 시점 스냅샷 - Supabase 연결이 안 될 때(오프라인, 네트워크 차단 등) 폴백으로 사용
+const EMBEDDED_DATA = /*__DASHBOARD_DATA__*/;
 </script>
 <script>
 (function(){
 "use strict";
+
+// ============================================================
+// 0. 데이터 로드: Supabase 최신 스냅샷 우선, 실패 시 빌드시점 임베디드 데이터로 폴백
+// ============================================================
+const SUPABASE_URL = "https://xfmpdbzwtslwvwoqoypc.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_GWBkzCQtUhXPNwakDrFMBQ_1OohmTra";
+
+let DATA = null;
+
+async function loadData() {
+  const badge = document.getElementById('dataSourceBadge');
+  try {
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000));
+    const query = client
+      .from('scm_dashboard_snapshots')
+      .select('payload, created_at')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    const { data, error } = await Promise.race([query, timeout]);
+    if (error || !data) throw error || new Error('no rows');
+    if (badge) {
+      badge.textContent = 'Live DB · ' + new Date(data.created_at).toLocaleString('ko-KR');
+      badge.className = 'data-source-badge live';
+    }
+    return data.payload;
+  } catch (e) {
+    console.warn('Supabase 로드 실패, 임베디드 스냅샷 사용:', e);
+    if (badge) {
+      badge.textContent = '오프라인 스냅샷 (빌드 시점 데이터)';
+      badge.className = 'data-source-badge embedded';
+    }
+    return EMBEDDED_DATA;
+  }
+}
+
 const fmt = (n, d=0) => Number(n).toLocaleString('ko-KR', {maximumFractionDigits:d, minimumFractionDigits:d});
 const fmtCompact = (n) => {
   const abs = Math.abs(n);
@@ -365,7 +411,7 @@ Chart.defaults.color = cssVar('--text-secondary');
 // ============================================================
 // 1. Summary cards
 // ============================================================
-(function renderCards(){
+function renderCards(){
   const c = DATA.cards;
   const html = `
     <div class="card">
@@ -387,12 +433,12 @@ Chart.defaults.color = cssVar('--text-secondary');
       <div class="sub">단위가 달라 직접 절감률이 아닌 회수기간 관점으로 표시</div>
     </div>`;
   document.getElementById('summaryCards').innerHTML = html;
-})();
+}
 
 // ============================================================
 // 2. 센터별 적재율 / 재고회전일수
 // ============================================================
-(function renderCenterCharts(){
+function renderCenterCharts(){
   const centers = DATA.centers;
   const labels = centers.map(c => `${c.center}센터(${c.region})`);
 
@@ -486,12 +532,12 @@ Chart.defaults.color = cssVar('--text-secondary');
   </tr>`).join('');
   document.getElementById('centerTable').innerHTML =
     `<thead><tr><th>센터</th><th>재고(AS-IS→TO-BE)</th><th>Capa</th><th>적재율</th><th>회전일수</th><th>상태</th></tr></thead><tbody>${rows}</tbody>`;
-})();
+}
 
 // ============================================================
 // 3. 저장조건별 차트
 // ============================================================
-(function renderStorageCharts(){
+function renderStorageCharts(){
   const s = DATA.storage;
   const labels = s.map(r=>r.storage);
   const palette = { "실온": cssVar('--brand-green'), "냉동": cssVar('--brand-blue'), "냉장": cssVar('--brand-orange') };
@@ -528,12 +574,12 @@ Chart.defaults.color = cssVar('--text-secondary');
       plugins:{legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10}}, tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${ctx.parsed.y}%`}}},
       scales:{ y:{beginAtZero:true, grid:{color:cssVar('--grid')}, ticks:{callback:(v)=>v+'%'}}, x:{grid:{display:false}} } }
   });
-})();
+}
 
 // ============================================================
 // 4. SKU 이동 상세 테이블
 // ============================================================
-(function initTable(){
+function initTable(){
   const rawRows = DATA.table;
   let filtered = rawRows.slice();
   let sortKey = null, sortDir = 1;
@@ -621,12 +667,12 @@ Chart.defaults.color = cssVar('--text-secondary');
   });
 
   renderTable();
-})();
+}
 
 // ============================================================
 // 5. 현장 실행 가이드 (자동 생성)
 // ============================================================
-(function renderGuide(){
+function renderGuide(){
   const ins = DATA.insights;
   const items = [];
 
@@ -670,10 +716,10 @@ Chart.defaults.color = cssVar('--text-secondary');
   document.getElementById('guideList').innerHTML = items.map(it =>
     `<div class="guide-item"><div class="icon ${it.icon}">${it.icon==='a'?'▲':it.icon==='b'?'▼':'●'}</div><div class="text">${it.html}</div></div>`
   ).join('');
-})();
+}
 
 // ============================================================
-// 6. 사이드바 네비게이션
+// 6. 사이드바 네비게이션 (데이터 로드와 무관하게 즉시 활성화)
 // ============================================================
 (function initNav(){
   const navItems = document.querySelectorAll('.nav-item');
@@ -688,6 +734,19 @@ Chart.defaults.color = cssVar('--text-secondary');
     });
   });
 })();
+
+// ============================================================
+// 7. 부트스트랩: 데이터 로드 후 전체 렌더
+// ============================================================
+async function boot() {
+  DATA = await loadData();
+  renderCards();
+  renderCenterCharts();
+  renderStorageCharts();
+  initTable();
+  renderGuide();
+}
+boot();
 
 })();
 </script>
