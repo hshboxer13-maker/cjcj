@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCM AS-IS → TO-BE 재고 재배치 대시보드</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --surface-1: #fcfcfb;
+  --page: #f2f1ee;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --grid: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;
+  --series-2: #008300;
+  --status-over: #d03b3b;    /* 과적재 = 빨강 */
+  --status-under: #2a78d6;   /* 저활용 = 파랑 */
+  --status-normal: #0ca30c;  /* 정상 = 초록 */
+  --status-over-bg: rgba(208,59,59,0.10);
+  --status-under-bg: rgba(42,120,214,0.10);
+  --status-normal-bg: rgba(12,163,12,0.10);
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --page: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --series-2: #008300;
+    --status-over: #e66767;
+    --status-under: #3987e5;
+    --status-normal: #0ca30c;
+    --status-over-bg: rgba(230,103,103,0.14);
+    --status-under-bg: rgba(57,135,229,0.14);
+    --status-normal-bg: rgba(12,163,12,0.14);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-1: #1a1a19; --page: #0d0d0d; --text-primary: #ffffff; --text-secondary: #c3c2b7;
+  --text-muted: #898781; --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5; --series-2: #008300;
+  --status-over: #e66767; --status-under: #3987e5; --status-normal: #0ca30c;
+  --status-over-bg: rgba(230,103,103,0.14); --status-under-bg: rgba(57,135,229,0.14); --status-normal-bg: rgba(12,163,12,0.14);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--text-primary);
+  font-family: system-ui, -apple-system, "Segoe UI", "Malgun Gothic", sans-serif; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 24px 20px 80px; }
+
+header.page-head { margin-bottom: 22px; }
+header.page-head h1 { font-size: 24px; margin: 0 0 6px; font-weight: 800; }
+header.page-head p { margin: 0; color: var(--text-secondary); font-size: 13.5px; }
+
+.panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+  padding: 20px 22px 16px; margin-bottom: 20px; }
+.panel h2 { font-size: 16px; margin: 0 0 4px; font-weight: 800; display:flex; align-items:center; gap:8px;}
+.panel .desc { font-size: 12.5px; color: var(--text-secondary); margin: 0 0 16px; line-height:1.55; }
+.panel .note { font-size: 11.5px; color: var(--text-muted); margin-top: 8px; line-height:1.5; }
+.callout { background: var(--status-under-bg); border: 1px solid var(--status-under);
+  border-radius: 10px; padding: 10px 14px; font-size: 12.5px; color: var(--text-primary);
+  margin-bottom: 16px; line-height: 1.6; }
+.callout b { color: var(--status-under); }
+
+/* ---- Summary cards ---- */
+.card-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px;
+  padding: 18px 20px; }
+.card .label { font-size: 12.5px; color: var(--text-secondary); font-weight: 600; margin-bottom: 10px; }
+.card .flow { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.card .before { font-size: 15px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.card .arrow { color: var(--text-muted); font-size: 15px; }
+.card .after { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.card .delta-badge { display:inline-block; margin-top:10px; padding: 3px 10px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 700; }
+.card .delta-badge.good { background: var(--status-normal-bg); color: var(--status-normal); }
+.card .delta-badge.info { background: var(--status-under-bg); color: var(--status-under); }
+.card .sub { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+/* ---- Grids / charts ---- */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.chart-box { position: relative; height: 280px; }
+.chart-box.short { height: 230px; }
+.legend-row { display:flex; gap:16px; font-size:12px; color:var(--text-secondary); margin-bottom:8px; flex-wrap:wrap;}
+.legend-row .item { display:flex; align-items:center; gap:6px; }
+.legend-row .sw { width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+.status-badge { display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px;
+  font-size:11px; font-weight:700; }
+.status-badge.over { background: var(--status-over-bg); color: var(--status-over); }
+.status-badge.under { background: var(--status-under-bg); color: var(--status-under); }
+.status-badge.normal { background: var(--status-normal-bg); color: var(--status-normal); }
+
+table.mini { width:100%; border-collapse:collapse; font-size:12.5px; margin-top:10px; }
+table.mini th, table.mini td { text-align:right; padding:7px 8px; border-bottom:1px solid var(--grid); }
+table.mini th:first-child, table.mini td:first-child { text-align:left; }
+table.mini th { color: var(--text-muted); font-weight:700; font-size:10.5px; text-transform:uppercase; letter-spacing:.02em;}
+
+/* ---- SKU table section ---- */
+.filter-row { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.filter-row input[type="text"], .filter-row select {
+  background: var(--page); border:1px solid var(--border); border-radius:8px; padding:7px 11px;
+  font-size:12.5px; color: var(--text-primary); font-family:inherit; }
+.filter-row input[type="text"] { flex: 1 1 220px; }
+.filter-row select { flex: 0 0 auto; }
+.table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+table.sku-table { width:100%; border-collapse:collapse; font-size:12.5px; min-width:760px; }
+table.sku-table th { position:sticky; top:0; background: var(--surface-1); text-align:left;
+  padding:9px 10px; font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em;
+  border-bottom:1px solid var(--border); cursor:pointer; user-select:none; white-space:nowrap;}
+table.sku-table th:hover { color: var(--text-primary); }
+table.sku-table td { padding:8px 10px; border-bottom:1px solid var(--grid); white-space:nowrap; }
+table.sku-table td.num { text-align:right; font-variant-numeric: tabular-nums; }
+tr.dir-in td.chg { color: var(--status-normal); }
+tr.dir-out td.chg { color: var(--status-over); }
+.tag-pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:10.5px; font-weight:700;
+  background: var(--status-under-bg); color: var(--status-under); }
+.pager { display:flex; align-items:center; justify-content:space-between; margin-top:12px; font-size:12px; color:var(--text-secondary);}
+.pager button { background: var(--page); border:1px solid var(--border); border-radius:7px; padding:5px 12px;
+  color: var(--text-primary); cursor:pointer; font-size:12px; }
+.pager button:disabled { opacity:.4; cursor:default; }
+.pager .pages { display:flex; gap:6px; align-items:center; }
+
+/* ---- Action guide ---- */
+.guide-list { display:flex; flex-direction:column; gap:12px; }
+.guide-item { display:flex; gap:12px; padding:14px 16px; border-radius:10px; background: var(--page);
+  border: 1px solid var(--border); }
+.guide-item .icon { flex:0 0 auto; width:30px; height:30px; border-radius:8px; display:flex;
+  align-items:center; justify-content:center; font-size:15px; font-weight:800; }
+.guide-item .icon.a { background: var(--status-under-bg); color: var(--status-under); }
+.guide-item .icon.b { background: var(--status-over-bg); color: var(--status-over); }
+.guide-item .icon.c { background: var(--status-normal-bg); color: var(--status-normal); }
+.guide-item .text { font-size:13px; line-height:1.65; color: var(--text-primary); }
+.guide-item .text b { color: var(--series-1); }
+.guide-item .text .num { font-variant-numeric: tabular-nums; font-weight:700; }
+
+footer.foot { text-align:center; font-size:11px; color:var(--text-muted); margin-top: 30px; }
+
+@media (max-width: 880px) {
+  .card-row, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page-head">
+    <h1>SCM 재고 재배치 대시보드 — AS-IS → TO-BE</h1>
+    <p>CJ프레시웨이 &#39;25년6월이체출고실적&#39; 기준 · SKU 1,000개 × 센터 5개 · LP(PuLP/CBC) 최적화 결과</p>
+  </header>
+
+  <!-- 1. 요약 카드 -->
+  <div class="card-row" id="summaryCards"></div>
+
+  <!-- 2. 센터별 적재율 -->
+  <div class="panel">
+    <h2>센터별 적재율 &amp; 재고회전일수 — AS-IS vs TO-BE</h2>
+    <p class="desc">Capa 대비 적재율(%)만으로는 센터 간 규모 차이가 잘 드러나지 않아, 재고를 며칠치 보유 중인지를 보는 <b>재고회전일수</b>(재고kg ÷ 일평균출고kg)를 함께 표시했다. 막대 색은 각 시점(AS-IS/TO-BE)의 상태를 의미한다.</p>
+    <div id="statusNote" class="callout"></div>
+    <div class="legend-row">
+      <span class="item"><span class="sw" style="background:var(--status-over)"></span>과적재</span>
+      <span class="item"><span class="sw" style="background:var(--status-under)"></span>저활용</span>
+      <span class="item"><span class="sw" style="background:var(--status-normal)"></span>정상</span>
+    </div>
+    <div class="grid-2">
+      <div>
+        <div style="font-size:12.5px;color:var(--text-secondary);margin-bottom:6px;font-weight:600;">적재율(%) — 점선은 Capa(100%)</div>
+        <div class="chart-box"><canvas id="chartUtil"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:12.5px;color:var(--text-secondary);margin-bottom:6px;font-weight:600;">재고회전일수(일) — 점선은 네트워크 평균</div>
+        <div class="chart-box"><canvas id="chartDays"></canvas></div>
+      </div>
+    </div>
+    <table class="mini" id="centerTable"></table>
+  </div>
+
+  <!-- 3. 저장조건별 이체 패턴 -->
+  <div class="panel">
+    <h2>저장조건별 이체 패턴 변화 — 실온 / 냉동 / 냉장</h2>
+    <p class="desc">AS-IS 이체량은 <b>매달 반복</b>되는 실측 이체 실적(kg)이고, TO-BE 이동량은 AS-IS→TO-BE로 <b>한 번</b> 재배치하는 데 필요한 물량이다 — 두 수치는 성격이 달라 직접 비율로 비교하지 않았다.</p>
+    <div class="grid-3">
+      <div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:600;">재고보유일수(일)</div>
+        <div class="chart-box short"><canvas id="chartStorageDays"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:600;">이체/이동량(kg)</div>
+        <div class="chart-box short"><canvas id="chartStorageMove"></canvas></div>
+      </div>
+      <div>
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;font-weight:600;">악성재고 비중(%)</div>
+        <div class="chart-box short"><canvas id="chartStorageBad"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. SKU 이동 상세 테이블 -->
+  <div class="panel">
+    <h2>SKU 이동(Transfer) 상세 <span id="tableCount" style="font-size:12px;color:var(--text-muted);font-weight:500;"></span></h2>
+    <p class="desc">TO-BE 계획 상 AS-IS 대비 재고량이 변화하는 모든 SKU×센터 조합(±0.5kg 이상). 컬럼 헤더 클릭 시 정렬.</p>
+    <div class="filter-row">
+      <input type="text" id="searchBox" placeholder="상품코드 또는 상품명 검색...">
+      <select id="filterStorage"><option value="">저장조건 전체</option></select>
+      <select id="filterCategory"><option value="">상품범주 전체</option></select>
+      <select id="filterCenter"><option value="">센터 전체</option></select>
+      <select id="filterDirection">
+        <option value="">유입/유출 전체</option>
+        <option value="유입">유입만</option>
+        <option value="유출">유출만</option>
+      </select>
+    </div>
+    <div class="table-scroll">
+      <table class="sku-table">
+        <thead>
+          <tr>
+            <th data-key="skuId">상품코드</th>
+            <th data-key="skuName">상품명</th>
+            <th data-key="category">상품범주</th>
+            <th data-key="storage">저장조건</th>
+            <th data-key="center">센터</th>
+            <th data-key="asisKg">AS-IS(kg)</th>
+            <th data-key="tobeKg">TO-BE(kg)</th>
+            <th data-key="changeKg">변화(kg)</th>
+            <th data-key="direction">방향</th>
+          </tr>
+        </thead>
+        <tbody id="skuTableBody"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <div id="pagerInfo"></div>
+      <div class="pages">
+        <button id="prevPage">이전</button>
+        <span id="pageLabel"></span>
+        <button id="nextPage">다음</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. 현장 실행 가이드 -->
+  <div class="panel">
+    <h2>현장 실행 가이드</h2>
+    <p class="desc">위 분석 결과를 바탕으로 자동 생성된 액션 아이템.</p>
+    <div class="guide-list" id="guideList"></div>
+  </div>
+
+  <footer class="foot">CJ프레시웨이 &#39;25년6월이체출고실적&#39; 기반 SCM 재고 재배치 분석 · 안전재고/Capa/이체비용/권역 매핑은 가상 정의값 · 실행 전 현업 검증 필요</footer>
+</div>
+
+<script>
+const DATA = /*__DASHBOARD_DATA__*/;
+</script>
+<script>
+(function(){
+"use strict";
+const fmt = (n, d=0) => Number(n).toLocaleString('ko-KR', {maximumFractionDigits:d, minimumFractionDigits:d});
+const fmtCompact = (n) => {
+  const abs = Math.abs(n);
+  if (abs >= 1e8) return (n/1e8).toFixed(1) + '억';
+  if (abs >= 1e4) return (n/1e4).toFixed(0) + '만';
+  return fmt(n);
+};
+const cssVar = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const statusColor = (status) => status === '과적재' ? cssVar('--status-over') : status === '저활용' ? cssVar('--status-under') : cssVar('--status-normal');
+const statusClass = (status) => status === '과적재' ? 'over' : status === '저활용' ? 'under' : 'normal';
+
+Chart.defaults.font.family = "system-ui, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif";
+Chart.defaults.font.size = 11.5;
+Chart.defaults.color = cssVar('--text-secondary');
+
+// ============================================================
+// 1. Summary cards
+// ============================================================
+(function renderCards(){
+  const c = DATA.cards;
+  const html = `
+    <div class="card">
+      <div class="label">센터간 재고 불균형 (재고회전일수 격차)</div>
+      <div class="flow"><span class="before">${fmt(c.unbalance.before,2)}일</span><span class="arrow">&#8594;</span><span class="after">${fmt(c.unbalance.after,2)}일</span></div>
+      <span class="delta-badge good">${c.unbalance.pct}% 축소</span>
+      <div class="sub">센터 간 최대-최소 재고회전일수 격차 (1↔3센터가 아니라 실제 최대·최소 센터 기준 — 아래 참고)</div>
+    </div>
+    <div class="card">
+      <div class="label">악성재고 (회전율 하위20%&amp;이체수신) 재고량</div>
+      <div class="flow"><span class="before">${fmtCompact(c.badstock.before)}kg</span><span class="arrow">&#8594;</span><span class="after">${fmtCompact(c.badstock.after)}kg</span></div>
+      <span class="delta-badge good">${c.badstock.pct}% 감소</span>
+      <div class="sub">128개 SKU×센터 조합 기준</div>
+    </div>
+    <div class="card">
+      <div class="label">이체비용 (AS-IS 월간 반복 vs TO-BE 1회성 전환)</div>
+      <div class="flow"><span class="before">${fmtCompact(c.transfer.before)}원/월</span><span class="arrow">&#8594;</span><span class="after">${fmtCompact(c.transfer.after)}원</span></div>
+      <span class="delta-badge info">전환비용 = 월 운영비의 ${c.transfer.payback_pct}%</span>
+      <div class="sub">단위가 달라 직접 절감률이 아닌 회수기간 관점으로 표시</div>
+    </div>`;
+  document.getElementById('summaryCards').innerHTML = html;
+})();
+
+// ============================================================
+// 2. 센터별 적재율 / 재고회전일수
+// ============================================================
+(function renderCenterCharts(){
+  const centers = DATA.centers;
+  const labels = centers.map(c => `${c.center}센터(${c.region})`);
+
+  const over = centers.reduce((a,b)=> a.asis_days > b.asis_days ? a : b);
+  const under = centers.reduce((a,b)=> a.asis_days < b.asis_days ? a : b);
+  document.getElementById('statusNote').innerHTML =
+    `<b>참고:</b> 재고 <u>절대량</u>이 가장 큰 곳은 1센터(${fmt(centers[0].asis_stock_kg)}kg)이지만, 재고회전일수 기준으로는 정상범위(${fmt(centers[0].asis_days,2)}일, 네트워크 평균 ${fmt(DATA.insights.mean_days_asis,2)}일과 유사)다. `+
+    `실제로 <b>과적재</b> 상태인 곳은 <b>${over.center}센터(${over.region}, ${fmt(over.asis_days,2)}일)</b>, <b>저활용</b> 상태인 곳은 <b>${under.center}센터(${under.region}, ${fmt(under.asis_days,2)}일)</b>다.`;
+
+  new Chart(document.getElementById('chartUtil'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'AS-IS 적재율(%)', data: centers.map(c=>c.asis_util_pct),
+          backgroundColor: centers.map(c=>statusColor(c.asis_status)), borderRadius: 4, maxBarThickness: 22 },
+        { label: 'TO-BE 적재율(%)', data: centers.map(c=>c.tobe_util_pct),
+          backgroundColor: centers.map(c=>statusColor(c.tobe_status)+'99'), borderRadius: 4, maxBarThickness: 22 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: {
+        legend: { position:'bottom', labels:{boxWidth:10, boxHeight:10} },
+        tooltip: { callbacks: { label: (ctx)=> `${ctx.dataset.label}: ${ctx.parsed.y}%` } },
+        annotation: undefined,
+      },
+      scales: {
+        y: { beginAtZero:true, max:100, grid:{color:cssVar('--grid')}, ticks:{callback:(v)=>v+'%'} },
+        x: { grid:{display:false} }
+      }
+    },
+    plugins: [{
+      id: 'capaLine',
+      afterDraw(chart){
+        const {ctx, chartArea, scales} = chart;
+        const y = scales.y.getPixelForValue(100);
+        ctx.save();
+        ctx.strokeStyle = cssVar('--text-muted');
+        ctx.setLineDash([4,4]);
+        ctx.beginPath(); ctx.moveTo(chartArea.left, y); ctx.lineTo(chartArea.right, y); ctx.stroke();
+        ctx.restore();
+      }
+    }]
+  });
+
+  const meanAsis = DATA.insights.mean_days_asis, meanTobe = DATA.insights.mean_days_tobe;
+  new Chart(document.getElementById('chartDays'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'AS-IS 회전일수', data: centers.map(c=>c.asis_days),
+          backgroundColor: centers.map(c=>statusColor(c.asis_status)), borderRadius:4, maxBarThickness:22 },
+        { label: 'TO-BE 회전일수', data: centers.map(c=>c.tobe_days),
+          backgroundColor: centers.map(c=>statusColor(c.tobe_status)+'99'), borderRadius:4, maxBarThickness:22 },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: {
+        legend: { position:'bottom', labels:{boxWidth:10, boxHeight:10} },
+        tooltip: { callbacks: { label: (ctx)=> `${ctx.dataset.label}: ${ctx.parsed.y}일` } },
+      },
+      scales: {
+        y: { beginAtZero:true, grid:{color:cssVar('--grid')}, ticks:{callback:(v)=>v+'일'} },
+        x: { grid:{display:false} }
+      }
+    },
+    plugins: [{
+      id:'avgLine',
+      afterDraw(chart){
+        const {ctx, chartArea, scales} = chart;
+        const y = scales.y.getPixelForValue(meanAsis);
+        ctx.save();
+        ctx.strokeStyle = cssVar('--text-muted');
+        ctx.setLineDash([4,4]);
+        ctx.beginPath(); ctx.moveTo(chartArea.left, y); ctx.lineTo(chartArea.right, y); ctx.stroke();
+        ctx.restore();
+      }
+    }]
+  });
+
+  const rows = centers.map(c => `<tr>
+    <td>${c.center}센터 (${c.region})</td>
+    <td>${fmt(c.asis_stock_kg)} → ${fmt(c.tobe_stock_kg)} kg</td>
+    <td>${fmt(c.capa_kg)} kg</td>
+    <td>${c.asis_util_pct}% → ${c.tobe_util_pct}%</td>
+    <td>${fmt(c.asis_days,2)} → ${fmt(c.tobe_days,2)}일</td>
+    <td><span class="status-badge ${statusClass(c.asis_status)}">${c.asis_status}</span> → <span class="status-badge ${statusClass(c.tobe_status)}">${c.tobe_status}</span></td>
+  </tr>`).join('');
+  document.getElementById('centerTable').innerHTML =
+    `<thead><tr><th>센터</th><th>재고(AS-IS→TO-BE)</th><th>Capa</th><th>적재율</th><th>회전일수</th><th>상태</th></tr></thead><tbody>${rows}</tbody>`;
+})();
+
+// ============================================================
+// 3. 저장조건별 차트
+// ============================================================
+(function renderStorageCharts(){
+  const s = DATA.storage;
+  const labels = s.map(r=>r.storage);
+  const palette = { "실온": cssVar('--status-normal'), "냉동": cssVar('--series-1'), "냉장": '#e87ba4' };
+
+  new Chart(document.getElementById('chartStorageDays'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      {label:'AS-IS', data:s.map(r=>r.asis_days), backgroundColor: labels.map(l=>palette[l]), borderRadius:4, maxBarThickness:26},
+      {label:'TO-BE', data:s.map(r=>r.tobe_days), backgroundColor: labels.map(l=>palette[l]+'99'), borderRadius:4, maxBarThickness:26},
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10}}, tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${ctx.parsed.y}일`}}},
+      scales:{ y:{beginAtZero:true, grid:{color:cssVar('--grid')}, ticks:{callback:(v)=>v+'일'}}, x:{grid:{display:false}} } }
+  });
+
+  new Chart(document.getElementById('chartStorageMove'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      {label:'AS-IS 월간(kg)', data:s.map(r=>r.asis_transfer_kg), backgroundColor: labels.map(l=>palette[l]), borderRadius:4, maxBarThickness:26},
+      {label:'TO-BE 1회성(kg)', data:s.map(r=>r.tobe_move_kg), backgroundColor: labels.map(l=>palette[l]+'99'), borderRadius:4, maxBarThickness:26},
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10}}, tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${fmt(ctx.parsed.y)}kg`}}},
+      scales:{ y:{beginAtZero:true, grid:{color:cssVar('--grid')}, ticks:{callback:(v)=>fmtCompact(v)}}, x:{grid:{display:false}} } }
+  });
+
+  new Chart(document.getElementById('chartStorageBad'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      {label:'AS-IS 악성재고(%)', data:s.map(r=>r.asis_bad_pct), backgroundColor: cssVar('--status-over'), borderRadius:4, maxBarThickness:26},
+      {label:'TO-BE 악성재고(%)', data:s.map(r=>r.tobe_bad_pct), backgroundColor: cssVar('--status-normal'), borderRadius:4, maxBarThickness:26},
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10}}, tooltip:{callbacks:{label:(ctx)=>`${ctx.dataset.label}: ${ctx.parsed.y}%`}}},
+      scales:{ y:{beginAtZero:true, grid:{color:cssVar('--grid')}, ticks:{callback:(v)=>v+'%'}}, x:{grid:{display:false}} } }
+  });
+})();
+
+// ============================================================
+// 4. SKU 이동 상세 테이블
+// ============================================================
+(function initTable(){
+  const rawRows = DATA.table;
+  let filtered = rawRows.slice();
+  let sortKey = null, sortDir = 1;
+  let page = 1;
+  const pageSize = 50;
+
+  const storages = [...new Set(rawRows.map(r=>r.storage))].sort();
+  const categories = [...new Set(rawRows.map(r=>r.category))].sort();
+  const centers = [...new Set(rawRows.map(r=>r.center))].sort((a,b)=>a-b);
+
+  const selStorage = document.getElementById('filterStorage');
+  storages.forEach(s => selStorage.insertAdjacentHTML('beforeend', `<option value="${s}">${s}</option>`));
+  const selCategory = document.getElementById('filterCategory');
+  categories.forEach(c => selCategory.insertAdjacentHTML('beforeend', `<option value="${c}">${c}</option>`));
+  const selCenter = document.getElementById('filterCenter');
+  centers.forEach(c => selCenter.insertAdjacentHTML('beforeend', `<option value="${c}">${c}센터</option>`));
+
+  function applyFilters(){
+    const q = document.getElementById('searchBox').value.trim().toLowerCase();
+    const st = selStorage.value, cat = selCategory.value, ct = selCenter.value, dir = document.getElementById('filterDirection').value;
+    filtered = rawRows.filter(r => {
+      if (q && !(String(r.skuId).includes(q) || r.skuName.toLowerCase().includes(q))) return false;
+      if (st && r.storage !== st) return false;
+      if (cat && r.category !== cat) return false;
+      if (ct && String(r.center) !== ct) return false;
+      if (dir && r.direction !== dir) return false;
+      return true;
+    });
+    if (sortKey) applySort();
+    page = 1;
+    renderTable();
+  }
+
+  function applySort(){
+    filtered.sort((a,b) => {
+      let va = a[sortKey], vb = b[sortKey];
+      if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+      if (va < vb) return -1*sortDir;
+      if (va > vb) return 1*sortDir;
+      return 0;
+    });
+  }
+
+  function renderTable(){
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total/pageSize));
+    page = Math.min(page, totalPages);
+    const start = (page-1)*pageSize;
+    const pageRows = filtered.slice(start, start+pageSize);
+
+    document.getElementById('tableCount').textContent = `(${fmt(total)}건)`;
+    document.getElementById('skuTableBody').innerHTML = pageRows.map(r => `
+      <tr class="${r.direction === '유입' ? 'dir-in' : 'dir-out'}">
+        <td>${r.skuId}</td>
+        <td>${r.skuName}${r.wasBad ? ' <span class="tag-pill">악성재고였음</span>' : ''}</td>
+        <td>${r.category}</td>
+        <td>${r.storage}</td>
+        <td>${r.center}센터</td>
+        <td class="num">${fmt(r.asisKg,1)}</td>
+        <td class="num">${fmt(r.tobeKg,1)}</td>
+        <td class="num chg">${r.changeKg>0?'+':''}${fmt(r.changeKg,1)}</td>
+        <td>${r.direction}</td>
+      </tr>`).join('');
+
+    document.getElementById('pagerInfo').textContent = `${fmt(start+1)}-${fmt(Math.min(start+pageSize,total))} / ${fmt(total)}건`;
+    document.getElementById('pageLabel').textContent = `${page} / ${totalPages}`;
+    document.getElementById('prevPage').disabled = page <= 1;
+    document.getElementById('nextPage').disabled = page >= totalPages;
+  }
+
+  ['searchBox'].forEach(id => document.getElementById(id).addEventListener('input', applyFilters));
+  ['filterStorage','filterCategory','filterCenter','filterDirection'].forEach(id =>
+    document.getElementById(id).addEventListener('change', applyFilters));
+  document.getElementById('prevPage').addEventListener('click', ()=>{ page--; renderTable(); });
+  document.getElementById('nextPage').addEventListener('click', ()=>{ page++; renderTable(); });
+  document.querySelectorAll('table.sku-table th[data-key]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.dataset.key;
+      sortDir = (sortKey === key) ? -sortDir : 1;
+      sortKey = key;
+      applySort();
+      page = 1;
+      renderTable();
+    });
+  });
+
+  renderTable();
+})();
+
+// ============================================================
+// 5. 현장 실행 가이드 (자동 생성)
+// ============================================================
+(function renderGuide(){
+  const ins = DATA.insights;
+  const items = [];
+
+  items.push({
+    icon: 'a',
+    html: `<b>${ins.under_center.region}(${ins.under_center.center}센터)</b>는 재고회전일수 <span class="num">${fmt(ins.under_center.asis_days,2)}일</span>로 네트워크 평균(${fmt(ins.mean_days_asis,2)}일) 대비 크게 낮은 저활용 상태입니다. `+
+          `TO-BE 계획대로 ${ins.under_inflow.top_storage||''} 위주 SKU <span class="num">${ins.under_inflow.n_sku}개</span>(총 <span class="num">${fmt(ins.under_inflow.kg)}kg</span>)를 순유입시키면 `+
+          `적재율이 <span class="num">${ins.under_center.asis_util_pct}%→${ins.under_center.tobe_util_pct}%</span>, 회전일수는 <span class="num">${fmt(ins.under_center.asis_days,2)}일→${fmt(ins.under_center.tobe_days,2)}일</span>로 개선됩니다. `+
+          `(다만 네트워크 평균 대비 여전히 낮아 추가 안전재고 투입 검토가 필요합니다.)`
+  });
+
+  items.push({
+    icon: 'b',
+    html: `<b>${ins.over_center.region}(${ins.over_center.center}센터)</b>는 재고회전일수 <span class="num">${fmt(ins.over_center.asis_days,2)}일</span>로 네트워크 평균의 ${fmt(ins.over_center.asis_days/ins.mean_days_asis,2)}배에 달하는 과적재 상태입니다. `+
+          `${ins.over_outflow.top_storage||''} 위주 SKU <span class="num">${ins.over_outflow.n_sku}개</span>(총 <span class="num">${fmt(ins.over_outflow.kg)}kg</span>)를 다른 센터로 이관하면 `+
+          `적재율이 <span class="num">${ins.over_center.asis_util_pct}%→${ins.over_center.tobe_util_pct}%</span>, 회전일수는 <span class="num">${fmt(ins.over_center.asis_days,2)}일→${fmt(ins.over_center.tobe_days,2)}일</span>로 완화됩니다.`
+  });
+
+  items.push({
+    icon: 'c',
+    html: `이 TO-BE 계획을 실행하는 데 필요한 1회성 이관비용은 약 <span class="num">${fmtCompact(ins.tobe_onetime_cost)}원</span>이며, `+
+          `이는 현재 매달 반복되는 이체 운영비(약 <span class="num">${fmtCompact(ins.asis_monthly_cost)}원/월</span>)의 <span class="num">${ins.payback_pct}%</span> 수준입니다. `+
+          `안전재고 확보로 향후 월별 JIT 이체 의존도가 낮아진다면 단기간 내 회수 가능한 투자로 볼 수 있으나, 실제 회수기간은 운영 후 검증이 필요합니다.`
+  });
+
+  items.push({
+    icon: 'a',
+    html: `회전율 하위 20%이면서 이체까지 받고 있던 <b>악성재고 ${ins.badstock_n_pairs}건</b>은 재배치 후 재고량이 <span class="num">${ins.badstock_pct_reduction}%</span> 감소합니다. `+
+          `단, 이관·리드타임 비용과 균형을 맞춘 결과라 전량 해소는 아니며, 잔여 물량은 지속 모니터링이 필요합니다.`
+  });
+
+  if (ins.top_moves && ins.top_moves.length) {
+    const top = ins.top_moves[0];
+    items.push({
+      icon: 'c',
+      html: `가장 큰 단일 이동은 <b>SKU ${top.skuId}(${top.skuName}, ${top.storage})</b>로, ${top.center}센터에서 <span class="num">${fmt(Math.abs(top.changeKg),1)}kg</span>이 `+
+            `${top.changeKg<0?'빠져나가 다른 센터로 분산 배치':'순유입'}됩니다.`
+    });
+  }
+
+  document.getElementById('guideList').innerHTML = items.map(it =>
+    `<div class="guide-item"><div class="icon ${it.icon}">${it.icon==='a'?'▲':it.icon==='b'?'▼':'●'}</div><div class="text">${it.html}</div></div>`
+  ).join('');
+})();
+
+})();
+</script>
+</body>
+</html>
