@@ -97,30 +97,22 @@ body { margin: 0; background: var(--page); color: var(--text-primary);
   .hero-banner { height: 140px; }
 }
 
-/* ---- App shell / sidebar ---- */
-.app-shell { display: flex; align-items: stretch; min-height: 100vh; }
-.sidebar { flex: 0 0 220px; background: var(--surface-1); border-right: 1px solid var(--border);
-  padding: 18px 12px; position: sticky; top: 0; align-self: flex-start; height: 100vh; overflow-y: auto; }
-.sidebar-title { font-size: 12px; font-weight: 800; color: var(--text-muted); text-transform: uppercase;
-  letter-spacing: .04em; padding: 6px 10px 14px; }
-.nav-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-  background: transparent; border: none; border-radius: 9px; padding: 10px 12px; margin-bottom: 4px;
-  font-size: 13.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer;
-  font-family: inherit; }
-.nav-item .emoji { font-size: 15px; }
-.nav-item:hover { background: var(--page); color: var(--text-primary); }
-.nav-item.active { background: var(--status-normal-bg); color: var(--brand-green); font-weight: 700;
-  box-shadow: inset 3px 0 0 var(--brand-green); }
-.main-content { flex: 1 1 auto; min-width: 0; }
+/* ---- App shell / top nav ---- */
+.topnav { display: flex; align-items: center; justify-content: center; gap: 4px;
+  background: var(--surface-1); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10; }
+.topnav-inner { display: flex; gap: 6px; max-width: 1280px; width: 100%; padding: 0 20px; }
+.nav-item { display: flex; align-items: center; background: transparent; border: none;
+  padding: 16px 16px; font-size: 13.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer;
+  font-family: inherit; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color .15s; }
+.nav-item:hover { color: var(--text-primary); }
+.nav-item.active { color: var(--brand-green); font-weight: 700; border-bottom-color: var(--brand-green); }
 .page { display: none; }
 .page.active { display: block; }
 
 @media (max-width: 880px) {
-  .app-shell { flex-direction: column; }
-  .sidebar { position: static; height: auto; width: 100%; flex: none;
-    display: flex; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--border); }
-  .sidebar-title { display: none; }
-  .nav-item { width: auto; white-space: nowrap; }
+  .topnav-inner { overflow-x: auto; }
+  .nav-item { white-space: nowrap; }
 }
 
 header.page-head { margin-bottom: 22px; }
@@ -242,16 +234,14 @@ footer.foot { text-align:center; font-size:11px; color:var(--text-muted); margin
     </div>
   </div>
 </div>
-<div class="app-shell">
+<nav class="topnav">
+  <div class="topnav-inner">
+    <button class="nav-item active" data-page="overview">요약 대시보드</button>
+    <button class="nav-item" data-page="table">SKU 이동 상세</button>
+    <button class="nav-item" data-page="guide">현장 실행 가이드</button>
+  </div>
+</nav>
 
-  <nav class="sidebar">
-    <div class="sidebar-title">메뉴</div>
-    <button class="nav-item active" data-page="overview"><span class="emoji">📊</span>요약 대시보드</button>
-    <button class="nav-item" data-page="table"><span class="emoji">📋</span>SKU 이동 상세</button>
-    <button class="nav-item" data-page="guide"><span class="emoji">💡</span>현장 실행 가이드</button>
-  </nav>
-
-  <div class="main-content">
   <div class="wrap">
 
   <header class="page-head">
@@ -366,8 +356,6 @@ footer.foot { text-align:center; font-size:11px; color:var(--text-muted); margin
 
   <footer class="foot">CJ프레시웨이 &#39;25년6월이체출고실적&#39; 기반 SCM 재고 재배치 분석 · 안전재고/Capa/이체비용/권역 매핑은 가상 정의값 · 실행 전 현업 검증 필요</footer>
   </div><!-- /wrap -->
-  </div><!-- /main-content -->
-</div><!-- /app-shell -->
 
 <script>
 // 빌드 시점 스냅샷 - Supabase 연결이 안 될 때(오프라인, 네트워크 차단 등) 폴백으로 사용
@@ -749,7 +737,6 @@ function renderGuide(){
       const target = btn.dataset.page;
       navItems.forEach(b => b.classList.toggle('active', b === btn));
       pages.forEach(p => p.classList.toggle('active', p.dataset.page === target));
-      document.querySelector('.main-content').scrollTo?.(0, 0);
       window.scrollTo(0, 0);
     });
   });
